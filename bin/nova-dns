@@ -39,8 +39,8 @@ from nova import service
 from nova_dns import dns, amqp 
 
 
-from nova import flags
 from nova import utils
+from nova import flags
 from nova import log as logging
 
 #from nova_dns import amqp

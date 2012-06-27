@@ -82,28 +82,28 @@ add credentials for SQL connection:
 
 .. code-block:: bash
 
-   echo "--dns_sql_connection=mysql://$DBUSER:$DBPASS@localhost/$DBNAME" >> $NOVA
+   echo "dns_sql_connection=mysql://$DBUSER:$DBPASS@localhost/$DBNAME" >> $NOVA
 
 setup defaults for SOA:
 
 .. code-block:: bash
 
-   echo "--dns_default_ttl=7200
-   --dns_soa_primary=ns1@my_host.com
-   --dns_soa_email=hostmaster@my_host.com" >> $NOVA
+   echo "dns_default_ttl=7200
+   dns_soa_primary=ns1@my_host.com
+   dns_soa_email=hostmaster@my_host.com" >> $NOVA
 
 setup zone for fixed_ip records: 
 
 .. code-block:: bash
 
-   echo "--dns_zone=cloud.my_host.com" >> $NOVA
+   echo "dns_zone=cloud.my_host.com" >> $NOVA
 
 setup ns servers: 
 
 .. code-block:: bash 
 
    LOCALDNS=`perl -e '$ns=1; print join(",", map {sprintf "ns%d:%s", $ns++, $_} split /\s*,\s*/,$ARGV[0])' "$LOCALIP"
-   echo "--dns_ns=$LOCALDNS" >> $NOVA 
+   echo "dns_ns=$LOCALDNS" >> $NOVA 
 
 ^^^^^^^^^^^^^^^^^^^^^
 Configure PTR support
@@ -113,7 +113,7 @@ Turn on managing PTR records:
 
 .. code-block:: bash
 
-   echo "--dns_ptr" >> $NOVA
+   echo "dns_ptr" >> $NOVA
 
 PTR records will be created for C class network, *octet3.octet2.octet1.id-addr.arpa* zone will be created automatically if not exists
 
@@ -123,7 +123,7 @@ addresses)):
 .. code-block:: bash
 
    export ZONES="192.168.1.0/28, 192.168.2.0/24" #just example
-   echo "--dns_ptr_zones=$PTR_ZONES" >> $NOVA
+   echo "dns_ptr_zones=$PTR_ZONES" >> $NOVA
 
 For examples above PTR records will be added in zones
 *0-28.1.168.192.in-addr.arpa* and *0-24.2.168.192.in-addr.arpa*

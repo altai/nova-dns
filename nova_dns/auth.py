@@ -25,17 +25,19 @@ Authorization
 import ConfigParser
 
 from nova import flags
+from nova.openstack.common import cfg
 from keystoneclient.v2_0 import client as keystone_client
 from dnsmanager import DNSRecord
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_enum("dns_auth", "keystone", ["none", "keystone"],     
-                    "Auth mode in REST API")
-flags.DEFINE_enum("dns_nova_auth", "keystone", ["none", "keystone"],     
-                    "Auth mode in Nova")
-flags.DEFINE_string("dns_auth_role", "DNS_Admin", "Role name in REST API")
-flags.DEFINE_string("dns_zone", "localzone", "Nova DNS base zone")
+opts = [
+    cfg.StrOpt("dns_auth", default="keystone", help="Auth mode in REST API"),
+    cfg.StrOpt("dns_auth_role", default="DNS_Admin", help="Role name in REST API"),
+    cfg.StrOpt("dns_nova_auth", default="keystone", help="Auth mode in Nova"),
+    cfg.StrOpt("dns_zone", default="localzone", help="Nova DNS base zone")
+]
+FLAGS.register_opts(opts)
 
 
 

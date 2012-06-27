@@ -5,7 +5,7 @@
 %define mod_name nova_dns
 
 Name:             nova-dns
-Version:          0.2.2
+Version:          0.3.0
 Release:          1
 Summary:          REST API for DNS configuration and service to add records for fixed ips
 License:          GNU LGPL v2.1
@@ -17,7 +17,7 @@ Source0:          %{name}-%{version}.tar.gz
 BuildRoot:        %{_tmppath}/%{name}-%{version}-build
 BuildRequires:    python-devel python-setuptools make
 BuildArch:        noarch
-Requires:         python-nova
+Requires:         python-nova-essex python-keystoneclient-essex
 Requires:         start-stop-daemon
 
 %description

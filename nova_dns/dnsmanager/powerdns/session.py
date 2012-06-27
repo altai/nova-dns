@@ -25,14 +25,19 @@ import time
 
 import nova.exception
 from nova import flags
+from nova.openstack.common import cfg
 from nova import log as logging
 
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('dns_sql_connection',
-                "mysql://pdns:pdns@localhost/pdns",
+
+opts = [
+    cfg.StrOpt('dns_sql_connection',
+                default="mysql://pdns:pdns@localhost/pdns",
 #              'sqlite:////var/lib/nova/nova_dns.sqlite',
-                'connection string for powerdns sql database')
+                help='connection string for powerdns sql database')
+]
+FLAGS.register_opts(opts)
 
 
 LOG = logging.getLogger("nova_dns.dnsmanager.powerdns.session")

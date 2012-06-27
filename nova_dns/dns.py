@@ -25,6 +25,7 @@ import eventlet
 import json
 
 from nova import flags
+from nova.openstack.common import cfg
 from nova import log as logging
 from nova import utils
 
@@ -41,11 +42,12 @@ from nova_dns.auth import AUTH
 LOG = logging.getLogger("nova_dns.dns")
 FLAGS = flags.FLAGS
 
-
-flags.DEFINE_string("dns_listen", "0.0.0.0",
-                    "IP address for DNS API to listen")
-flags.DEFINE_integer("dns_listen_port", 15353,
-                    "DNS API port")
+opts = [
+    cfg.StrOpt("dns_listen", default="0.0.0.0",
+			help="IP address for DNS API to listen"),
+    cfg.IntOpt("dns_listen_port", default=15353, help="DNS API port")
+]
+FLAGS.register_opts(opts)
 
 class Service(service.WSGIService):
     """

@@ -28,6 +28,7 @@ import sqlalchemy.engine
 from nova import log as logging
 from nova import utils
 from nova import flags
+from nova.openstack.common import cfg
 
 from nova_dns.dnsmanager import DNSRecord
 from nova_dns.listener import AMQPListener
@@ -42,9 +43,14 @@ SLEEP = 60
 AUTH = auth.AUTH
 
 #TODO make own zone for every instance
-flags.DEFINE_list("dns_ns", "ns1:127.0.0.1", "Name servers, in format ns1:ip1, ns2:ip2")
-flags.DEFINE_bool('dns_ptr', False, 'Manage PTR records')
-flags.DEFINE_list('dns_ptr_zones', "", "Classless delegation networks in format ip_addr/network")
+opts = [
+    cfg.ListOpt("dns_ns", default=["ns1:127.0.0.1"], 
+	help="Name servers, in format ns1:ip1, ns2:ip2"),
+    cfg.BoolOpt('dns_ptr', defautl=False, help='Manage PTR records'),
+    cfg.ListOpt('dns_ptr_zones', default=[], 
+	help="Classless delegation networks in format ip_addr/network")
+]
+FLAGS.register_opts(opts)
 
 class Listener(AMQPListener):
     def __init__(self):
@@ -57,14 +63,14 @@ class Listener(AMQPListener):
 
     def event(self, e):
         method = e.get("method", "<unknown>")
-        id = e["args"].get("instance_id", None)
+        id = e["args"].get("instance_uuid", None)
         if method=="run_instance":
             LOG.info("Run instance %s. Waiting on assing ip address" % (str(id),))
             self.pending[id]=1
         elif method=="terminate_instance":
             if self.pending.has_key(id): del self.pending[id]
             rec = self.conn.execute("select hostname, project_id "+
-                "from instances where id=%s", id).first()
+                "from instances where uuid=%s", id).first()
             if not rec:
                 LOG.error('Unknown id: '+id)
             else:
@@ -90,13 +96,13 @@ class Listener(AMQPListener):
                 continue
             #TODO change select to i.id in ( pendings ) to speed up
             for r in self.conn.execute("""
-                select i.hostname, i.id, i.project_id, f.address
+                select i.hostname, i.id, i.project_id, i.uuid, f.address
                 from instances i, fixed_ips f
                 where i.id=f.instance_id"""):
-                if r.id not in self.pending: continue
+                if r.uuid not in self.pending: continue
                 LOG.info("Instance %s hostname %s adding ip %s" %
-                    (r.id, r.hostname, r.address))
-                del self.pending[r.id]
+                    (r.uuid, r.hostname, r.address))
+                del self.pending[r.uuid]
                 zones_list=self.dnsmanager.list()
                 if FLAGS.dns_zone not in zones_list:
                     #Lazy create main zone and populate by ns
