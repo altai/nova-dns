@@ -46,7 +46,7 @@ AUTH = auth.AUTH
 opts = [
     cfg.ListOpt("dns_ns", default=["ns1:127.0.0.1"], 
 	help="Name servers, in format ns1:ip1, ns2:ip2"),
-    cfg.BoolOpt('dns_ptr', defautl=False, help='Manage PTR records'),
+    cfg.BoolOpt('dns_ptr', default=False, help='Manage PTR records'),
     cfg.ListOpt('dns_ptr_zones', default=[], 
 	help="Classless delegation networks in format ip_addr/network")
 ]

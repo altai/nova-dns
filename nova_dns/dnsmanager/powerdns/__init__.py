@@ -32,6 +32,9 @@ models.register_models()
 class Manager(DNSManager):
     def __init__(self):
         self.session=get_session()
+    def init_host(self):
+        #make nova 'service' happy
+        pass
     def list(self):
         return [name[0] for name in self.session.query(Domains.name).all()]
     def add(self, zone_name, soa={}):

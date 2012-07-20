@@ -56,7 +56,6 @@ class Service(service.WSGIService):
         service.WSGIService.__init__(self, name="dns",
             loader=wsgi.Loader(config_path=FLAGS.dns_api_paste_config))
 
-
 class VersionFilter(object):
     """
     Filter returning version for "/" request
