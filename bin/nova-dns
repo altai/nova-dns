@@ -50,6 +50,11 @@ LOG = logging.getLogger("nova_dns.main")
 if __name__ == '__main__':
     utils.default_flagfile()
     flags.FLAGS(sys.argv)
+    FLAGS=flags.FLAGS
+    log_level = "DEBUG" if FLAGS.debug or FLAGS.verbose else "INFO"
+    levels=FLAGS.default_log_levels
+    levels.append("nova_dns=%s" % (log_level))
+    FLAGS.default_log_levels=levels
     logging.setup()
     utils.monkey_patch()
     #db_api.configure_backend()
