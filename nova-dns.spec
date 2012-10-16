@@ -1,3 +1,5 @@
+%global with_doc 0
+
 %if ! (0%{?fedora} > 12 || 0%{?rhel} > 5)
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 %endif
@@ -17,14 +19,15 @@ Source0:          %{name}-%{version}.tar.gz
 BuildRoot:        %{_tmppath}/%{name}-%{version}-build
 BuildRequires:    python-devel python-setuptools make
 BuildArch:        noarch
-Requires:         python-nova-essex python-keystoneclient-essex
+Requires:         python-nova
+Requires:         python-keystoneclient
 Requires:         start-stop-daemon
 
 %description
 This package contains the service to add dns records for instances and
 REST API to control DNS 
 
-
+%if 0%{?with_doc}
 %package doc
 Summary:        Documentation for %{name}
 Group:          Documentation
@@ -33,7 +36,7 @@ BuildRequires:  python-sphinx make
 
 %description doc
 Documentation and examples for %{name}.
-
+%endif
 
 %prep
 %setup -q -n %{name}-%{version}
@@ -45,8 +48,12 @@ Documentation and examples for %{name}.
 %__rm -rf %{buildroot}
 
 %{__python} setup.py install -O1 --skip-build --prefix=%{_prefix} --root=%{buildroot}
+
+%if 0%{?with_doc}
 export PYTHONPATH=%{buildroot}%{python_sitelib}
 make -C doc html
+%endif
+
 install -p -D -m 755 redhat/nova-dns.init %{buildroot}%{_initrddir}/%{name}
 mkdir -p %{buildroot}/etc
 cp -a etc/nova-dns %{buildroot}/etc
@@ -77,8 +84,10 @@ fi
 %{_usr}/bin/*
 %config(noreplace) /etc/nova-dns
 
+%if 0%{?with_doc}
 %files doc
 %defattr(-,root,root,-)
 %doc doc/build/html
+%endif
 
 %changelog
