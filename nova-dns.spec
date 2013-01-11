@@ -20,6 +20,8 @@ BuildRoot:        %{_tmppath}/%{name}-%{version}-build
 BuildRequires:    python-devel python-setuptools make
 BuildArch:        noarch
 Requires:         python-nova
+# for `nova` user and group
+Requires:         openstack-nova-common
 Requires:         python-keystoneclient
 Requires:         start-stop-daemon
 
