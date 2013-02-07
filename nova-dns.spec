@@ -1,5 +1,3 @@
-%global with_doc 0
-
 %if ! (0%{?fedora} > 12 || 0%{?rhel} > 5)
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 %endif
@@ -17,7 +15,7 @@ Group:            Development/Languages/Python
 
 Source0:          %{name}-%{version}.tar.gz
 BuildRoot:        %{_tmppath}/%{name}-%{version}-build
-BuildRequires:    python-devel python-setuptools make
+BuildRequires:    python-devel python-setuptools
 BuildArch:        noarch
 Requires:         python-nova
 # for `nova` user and group
@@ -34,7 +32,8 @@ REST API to control DNS
 Summary:        Documentation for %{name}
 Group:          Documentation
 Requires:       %{name} = %{version}-%{release}
-BuildRequires:  python-sphinx make
+BuildRequires:  python-sphinx10
+BuildRequires:  make
 
 %description doc
 Documentation and examples for %{name}.
@@ -52,8 +51,7 @@ Documentation and examples for %{name}.
 %{__python} setup.py install -O1 --skip-build --prefix=%{_prefix} --root=%{buildroot}
 
 %if 0%{?with_doc}
-export PYTHONPATH=%{buildroot}%{python_sitelib}
-make -C doc html
+make -C doc html PYTHONPATH=%{buildroot}%{python_sitelib} SPHINXBUILD=sphinx-1.0-build
 %endif
 
 install -p -D -m 755 redhat/nova-dns.init %{buildroot}%{_initrddir}/%{name}
