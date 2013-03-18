@@ -44,28 +44,32 @@ class NovaDnsNetworkDriver(object):
             self.ensure_vpn_forward = self._base.ensure_vpn_forward
 
     def get_dev(self, network):
-        """Part of network dirver contract delegated to base driver"""
+        """Part of network driver contract delegated to base driver"""
         return self._base.get_dev(network)
 
     def get_dhcp_leases(self, context, network_ref):
-        """Part of network dirver contract delegated to base driver"""
+        """Part of network driver contract delegated to base driver"""
         return self._base.get_dhcp_leases(context, network_ref)
 
     def update_ra(self, context, dev, network_ref):
-        """Part of network dirver contract delegated to base driver"""
+        """Part of network driver contract delegated to base driver"""
         return self._base.update_ra(context, dev, network_ref)
 
     def release_dhcp(self, dev, address, mac_address):
-        """Part of network dirver contract delegated to base driver"""
+        """Part of network driver contract delegated to base driver"""
         return self._base.release_dhcp(dev, address, mac_address)
 
     def kill_dhcp(self, dev):
-        """Part of network dirver contract delegated to base driver"""
+        """Part of network driver contract delegated to base driver"""
         return self._base.kill_dhcp(dev)
 
     def update_dhcp_hostfile_with_text(self, dev, hosts_text):
-        """Part of network dirver contract delegated to base driver"""
+        """Part of network driver contract delegated to base driver"""
         return self._base.update_dhcp_hostfile_with_text(dev, hosts_text)
+
+    def metadata_accept(self):
+        """Part of network driver contract delegated to base driver"""
+        return self._base.metadata_accept()
 
     # NOTE(imelnikov): interesting part starts here
 
