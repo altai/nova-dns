@@ -22,6 +22,7 @@
 - stateless"""
 
 import time
+import socket
 import eventlet
 import sqlalchemy.engine
 
@@ -113,7 +114,7 @@ class Listener(AMQPListener):
                 zones_list = self.dnsmanager.list()
                 if FLAGS.dns_zone not in zones_list:
                     #Lazy create main zone and populate by ns
-                    self._add_zone(FLAGS.dns_zone)
+                    self._add_main_zone()
                 zonename = AUTH.tenant2zonename(r.project_id)
                 if zonename not in zones_list:
                     self._add_zone(zonename)
@@ -131,18 +132,41 @@ class Listener(AMQPListener):
                 except:
                     pass
 
+    def _add_main_zone(self):
+        name = FLAGS.dns_zone
+        self._add_zone(name)
+        zone = self.dnsmanager.get(name)
+        for ns in FLAGS.dns_ns:
+            (host, address) = ns.split(':', 1)
+            # NOTE(imelnikov): if host is in main zone or its subdomain,
+            #   strip current zone and period
+            if host.endswith(name):
+                host = host[:-len(name)-1]
+            if '.' not in host:
+                # NOTE(imelnikov): this is host from main zone,
+                #    let's add a record for it
+                try:
+                    socket.inet_aton(address)
+                    # ok, this is something like ipv4
+                    record_type = 'A'
+                except socket.error:
+                    # this is not ipv4, must be host name
+                    record_type = 'PTR'
+                zone.add(DNSRecord(name=host, type=record_type,
+                                   content=address))
+
     def _add_zone(self, name):
         try:
             self.dnsmanager.add(name)
             zone = self.dnsmanager.get(name)
             for ns in FLAGS.dns_ns:
-                (name, content) = ns.split(':', 2)
-                zone.add(DNSRecord(name=name, type="NS", content=content))
-        except ValueError as e:
-            LOG.warn(str(e))
-        except:
-            #TODO add exception ZoneExists and pass only it
-            pass
+                (host, _address) = ns.split(':', 2)
+                if '.' not in host:
+                    host = '%s.%s' % (host, FLAGS.dns_zone)
+                zone.add(DNSRecord(name=name, type="NS", content=host))
+        except Exception, e:
+            #TODO(nsavin) add exception ZoneExists and pass only it and ValueError
+            LOG.exception('Failed to add zone')
 
     def ip2zone(self, ip):
         #TODO check /cidr >= 24

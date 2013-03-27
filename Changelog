@@ -1,3 +1,6 @@
+0.3.2
+* correct adding records for NS servers on zone creation
+* fixed nova_network_driver
 0.3.1
 * added nova_network_driver
 0.3.0
