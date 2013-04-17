@@ -17,8 +17,17 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import unittest
 import stubout
+
+from nova import flags
+
+FLAGS = flags.FLAGS
+
+FLAGS.dns_api_paste_config = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'etc/nova-dns/dns-api-paste.ini')
 
 
 class TestCase(unittest.TestCase):
