@@ -108,7 +108,6 @@ class Records(BASE, PowerDNSBase):
     prio = Column(Integer)
     change_date = Column(Integer)
 
-Index('nametype_index', Records.name, Records.type, unique=True)
 
 def register_models():
     """Register Models and create metadata."""
@@ -116,5 +115,3 @@ def register_models():
     engine = get_engine()
     for model in models:
         model.metadata.create_all(engine)
-    
-
