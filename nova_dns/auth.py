@@ -63,11 +63,11 @@ class KeystoneAuth(NoAuth):
     def tenant2zonename(self, project_id):
         #project_id is a really project_id :)
         return super(KeystoneAuth, self).tenant2zonename(self._get_tenant(project_id))
-    
-    def can(self, req, zone_name): 
-        roles = [r.strip()
+
+    def can(self, req, zone_name):
+        roles = [r.strip().lower()
                  for r in req.headers.get('X_ROLE', '').split(',')]
-        if "Admin" in roles:
+        if "admin" in roles:
             return {"read":True, "write":True}
         if FLAGS.dns_auth_role not in roles:
             return {"read":True, "write":False}
