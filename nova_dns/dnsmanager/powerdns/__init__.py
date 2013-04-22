@@ -37,14 +37,14 @@ class Manager(DNSManager):
         pass
     def list(self):
         return [name[0] for name in self.session.query(Domains.name).all()]
-    def add(self, zone_name, soa={}):
+    def add(self, zone_name, soa=None):
         if zone_name in self.list():
             raise Exception('Zone already exists')
         zone_name=DNSRecord.normname(zone_name)
         self.session.add(Domains(name=zone_name, type="NATIVE"))
         self.session.flush()
         LOG.info("[%s]: Zone was added" % (zone_name))
-        soa=DNSSOARecord(**soa)
+        soa = DNSSOARecord(**soa) if soa else DNSSOARecord()
         # PowerDNS-specific. TODO make this more pytonish - with objects
         # and bells
         soa.content=" ".join((str(f) for f in (soa.primary, soa.hostmaster, soa.serial,

@@ -59,7 +59,7 @@ class DNSManager:
         pass
 
     @abstractmethod
-    def add(self, zone_name, soa):
+    def add(self, zone_name, soa=None):
         pass
 
     @abstractmethod

@@ -42,7 +42,7 @@ class TestManager():
     def list(self):
         return zones
 
-    def add(self, zone_name, soa):
+    def add(self, zone_name, soa=None):
         if zone_name == 'error':
             raise Exception('test error')
         return (zone_name, soa)
