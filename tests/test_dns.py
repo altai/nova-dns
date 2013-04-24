@@ -54,6 +54,21 @@ class TestManager():
         return TestZone(zone_name)
 
 
+class TestInstanceManager():
+
+    def __init__(self):
+        self.dnsmanager = TestManager()
+
+    def add_instance(self, hostname, tenant_id, network_id, address):
+        pass
+
+    def delete_instance(self, hostname, tenant_id, network_id, address):
+        pass
+
+    def sync(self, zone):
+        return {'zone': zone}
+
+
 class TestZone():
     def __init__(self, zone_name):
         self.zone_name = zone_name
@@ -97,6 +112,7 @@ class TestCase(tests.TestCase):
 
     def test_app(self):
         FLAGS.dns_manager = "tests.test_dns.TestManager"
+        FLAGS.dns_instance_manager = "tests.test_dns.TestInstanceManager"
         AUTH = TestAuth()
         dns.AUTH = AUTH
 
@@ -142,4 +158,8 @@ class TestCase(tests.TestCase):
         self.assertEqual(self.req('/record/testzone/some/MX', method='DELETE'),
             ['testzone', 'some', 'MX'])
 
+        self.assertEqual(self.req('/sync', method='POST'),
+                         {'zone': None})
+        self.assertEqual(self.req('/zone/test/sync', method='POST'),
+                         {'zone': 'test'})
 

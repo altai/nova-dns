@@ -32,3 +32,8 @@ class InstanceManager:
     def delete_instance(self, hostname, tenant_id, network_id, address):
         """Remove instance from DNS"""
         pass
+
+    @abstractmethod
+    def sync(self, zone=None):
+        """Synchronize state with nova"""
+        pass

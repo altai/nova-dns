@@ -75,7 +75,6 @@ class DNSManager:
         pass
 
 
-
 class DNSZone:
     @abstractmethod
     def __init__(self, zone_name):

@@ -114,6 +114,9 @@ class SimpleInstanceManager(InstanceManager):
             except (exc.ZoneNotFound, exc.RecordNotFound):
                 pass
 
+    def sync(self, zone=None):
+        raise Exception('Sync not implemented')
+
     @staticmethod
     def _add_record_if_not_present(zone, name, type, content):
         if not any(r.content == content for r in zone.get(name, type)):

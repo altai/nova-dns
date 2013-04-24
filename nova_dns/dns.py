@@ -94,8 +94,8 @@ class Controller(object):
     """
 
     def __init__(self):
-        manager_class=utils.import_class(FLAGS.dns_manager);
-        self.manager=manager_class()
+        self.instance_manager = utils.import_object(FLAGS.dns_instance_manager)
+        self.manager = self.instance_manager.dnsmanager
 
     @webob.dec.wsgify
     def __call__(self, req):
@@ -153,6 +153,8 @@ class Controller(object):
                     ttl=req.GET.get('ttl', None),
                     priority=req.GET.get('priority', None)
                 )
+            elif action=='sync':
+                result = self.instance_manager.sync(args.get('zonename'))
             else:
                 raise Exception("Incorrect action: "+action)
             return webob.Response(json.dumps({"result":result, "error":None}),
@@ -204,6 +206,8 @@ class App(wsgi.Router):
             controller=Controller(), action="zone_add")
         map.connect(None, "/zone/{zonename}", conditions=dict(method=["DELETE"]),
             controller=Controller(), action="zone_del")
+        map.connect(None, "/zone/{zonename}/sync", conditions=dict(method=["POST"]),
+            controller=Controller(), action="sync")
         map.connect(None, "/record/{zonename}", conditions=dict(method=["GET"]),
             controller=Controller(), action="list")
         map.connect(None, "/record/{zonename}/{name}/{type}/{content}",
@@ -215,6 +219,9 @@ class App(wsgi.Router):
         map.connect(None, "/record/{zonename}/{name}/{type}",
             conditions=dict(method=["DELETE"]), controller=Controller(),
             action="record_del")
+        map.connect(None, "/sync",
+            conditions=dict(method=["POST"]), controller=Controller(),
+            action="sync")
         super(App, self).__init__(map)
 
     @classmethod
