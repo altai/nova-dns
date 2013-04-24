@@ -28,6 +28,7 @@ from nova import flags
 from nova import log as logging
 from nova.openstack.common import cfg
 
+from nova_dns import exc
 from nova_dns.dnsmanager import DNSRecord
 from nova_dns.instance_manager import InstanceManager
 from nova_dns.auth import AUTH
@@ -45,6 +46,22 @@ opts = [
                 help="Classless delegation networks in format ip_addr/network")
 ]
 FLAGS.register_opts(opts)
+
+
+def _ip_to_zone(ip):
+    #TODO check /cidr >= 24
+    addr = netaddr.IPAddress(ip)
+    for zone in FLAGS.dns_ptr_zones:
+        #TODO prepare netaddr one time on service start
+        zoneaddr = netaddr.IPNetwork(zone)
+        if addr not in zoneaddr:
+            continue
+        cidr = str(zoneaddr.cidr).split('/')[1]
+        w = zoneaddr.cidr.ip.words
+        return ("%s-%s.%s.%s.%s.in-addr.arpa" %
+            (w[3], cidr, w[2], w[1], w[0]), addr.words[-1])
+    w = addr.words
+    return ("%s.%s.%s.in-addr.arpa" % (w[2], w[1], w[0]), w[3])
 
 
 class SimpleInstanceManager(InstanceManager):
@@ -65,7 +82,7 @@ class SimpleInstanceManager(InstanceManager):
             self.dnsmanager.get(zonename).add(
                 DNSRecord(name=hostname, type='A', content=address))
             if FLAGS.dns_ptr:
-                (ptr_zonename, octet) = self.ip2zone(address)
+                (ptr_zonename, octet) = _ip_to_zone(address)
                 if ptr_zonename not in zones_list:
                     self._add_zone(ptr_zonename)
                 self.dnsmanager.get(ptr_zonename).add(DNSRecord(name=octet,
@@ -76,12 +93,20 @@ class SimpleInstanceManager(InstanceManager):
     def delete_instance(self, hostname, tenant_id, network_id, address):
         #TODO check if record was added/changed by admin
         zonename = AUTH.tenant2zonename(tenant_id)
-        zone = self.dnsmanager.get(zonename)
+        try:
+            zone = self.dnsmanager.get(zonename)
+            if address is None:
+                address = zone.get(hostname, 'A')[0].content
+            zone.delete(hostname, 'A')
+        except (exc.ZoneNotFound, exc.RecordNotFound):
+            pass
+
         if FLAGS.dns_ptr:
-            ip = zone.get(hostname, 'A')[0].content
-            (ptr_zonename, octet) = self.ip2zone(ip)
-            self.dnsmanager.get(ptr_zonename).delete(str(octet), 'PTR')
-        zone.delete(hostname, 'A')
+            try:
+                (ptr_zonename, octet) = _ip_to_zone(address)
+                self.dnsmanager.get(ptr_zonename).delete(str(octet), 'PTR')
+            except (exc.ZoneNotFound, exc.RecordNotFound):
+                pass
 
     def _add_main_zone(self):
         name = FLAGS.dns_zone
@@ -117,19 +142,4 @@ class SimpleInstanceManager(InstanceManager):
             if '.' not in host:
                 host = '%s.%s' % (host, FLAGS.dns_zone)
             zone.add(DNSRecord(name='', type="NS", content=host))
-
-    def ip2zone(self, ip):
-        #TODO check /cidr >= 24
-        addr = netaddr.IPAddress(ip)
-        for zone in FLAGS.dns_ptr_zones:
-            #TODO prepare netaddr one time on service start
-            zoneaddr = netaddr.IPNetwork(zone)
-            if addr not in zoneaddr:
-                continue
-            cidr = str(zoneaddr.cidr).split('/')[1]
-            w = zoneaddr.cidr.ip.words
-            return ("%s-%s.%s.%s.%s.in-addr.arpa" %
-                (w[3], cidr, w[2], w[1], w[0]), addr.words[-1])
-        w = addr.words
-        return ("%s.%s.%s.in-addr.arpa" % (w[2], w[1], w[0]), w[3])
 

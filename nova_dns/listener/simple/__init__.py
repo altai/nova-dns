@@ -58,17 +58,16 @@ class Listener(AMQPListener):
         elif method in stop_vm:
             if id in self.pending:
                 del self.pending[id]
-            rec = self.conn.execute("select hostname, project_id " +
-                "from instances where uuid=%s", id).first()
-            if not rec:
-                LOG.error('Unknown id: '+id)
-            else:
+            for r in self.conn.execute(
+                    'SELECT i.hostname, i.project_id, f.address '
+                    'FROM instances i, fixed_ips f '
+                    'WHERE i.id=f.instance_id AND i.uuid = %s', id):
                 try:
-                    LOG.info("Instance %s hostname '%s' was terminated" %
-                        (id, rec.hostname))
-                    # TODO(imelnikov): pass real network ID and address
+                    LOG.info("Instance %s hostname '%s' was terminated",
+                             id, r.hostname)
+                    # TODO(imelnikov): pass real network ID
                     self.instance_manager.delete_instance(
-                        rec.hostname, rec.project_id, None, None)
+                        r.hostname, r.project_id, None, r.address)
                 except Exception:
                     LOG.exception("Failed to delete instance")
         else:
