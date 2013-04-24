@@ -21,37 +21,21 @@
 - doesn't sync state with dns after restart
 - stateless"""
 
+
 import time
-import socket
 import eventlet
 import sqlalchemy.engine
 
 from nova import log as logging
 from nova import utils
 from nova import flags
-from nova.openstack.common import cfg
 
-from nova_dns.dnsmanager import DNSRecord
 from nova_dns.listener import AMQPListener
-from nova_dns import auth
 
-import netaddr
 
 LOG = logging.getLogger("nova_dns.listener.simple")
 FLAGS = flags.FLAGS
 SLEEP = 60
-
-AUTH = auth.AUTH
-
-#TODO make own zone for every instance
-opts = [
-    cfg.ListOpt("dns_ns", default=["ns1:127.0.0.1"],
-                help="Name servers, in format ns1:ip1, ns2:ip2"),
-    cfg.BoolOpt('dns_ptr', default=False, help='Manage PTR records'),
-    cfg.ListOpt('dns_ptr_zones', default=[],
-                help="Classless delegation networks in format ip_addr/network")
-]
-FLAGS.register_opts(opts)
 
 start_vm = frozenset(['run_instance', 'start_instance'])
 stop_vm = frozenset(['terminate_instance', 'stop_instance'])
@@ -62,8 +46,7 @@ class Listener(AMQPListener):
         self.pending = {}
         self.conn = sqlalchemy.engine.create_engine(FLAGS.sql_connection,
             pool_recycle=FLAGS.sql_idle_timeout, echo=False)
-        dnsmanager_class = utils.import_class(FLAGS.dns_manager)
-        self.dnsmanager = dnsmanager_class()
+        self.instance_manager = utils.import_object(FLAGS.dns_instance_manager)
         self.eventlet = eventlet.spawn(self._pollip)
 
     def event(self, e):
@@ -83,14 +66,9 @@ class Listener(AMQPListener):
                 try:
                     LOG.info("Instance %s hostname '%s' was terminated" %
                         (id, rec.hostname))
-                    #TODO check if record was added/changed by admin
-                    zonename = AUTH.tenant2zonename(rec.project_id)
-                    zone = self.dnsmanager.get(zonename)
-                    if FLAGS.dns_ptr:
-                        ip = zone.get(rec.hostname, 'A')[0].content
-                        (ptr_zonename, octet) = self.ip2zone(ip)
-                        self.dnsmanager.get(ptr_zonename).delete(str(octet), 'PTR')
-                    zone.delete(rec.hostname, 'A')
+                    # TODO(imelnikov): pass real network ID and address
+                    self.instance_manager.delete_instance(
+                        rec.hostname, rec.project_id, None, None)
                 except:
                     pass
         else:
@@ -111,74 +89,6 @@ class Listener(AMQPListener):
                 LOG.info("Instance %s hostname %s adding ip %s" %
                     (r.uuid, r.hostname, r.address))
                 del self.pending[r.uuid]
-                zones_list = self.dnsmanager.list()
-                if FLAGS.dns_zone not in zones_list:
-                    #Lazy create main zone and populate by ns
-                    self._add_main_zone()
-                zonename = AUTH.tenant2zonename(r.project_id)
-                if zonename not in zones_list:
-                    self._add_zone(zonename)
-                try:
-                    self.dnsmanager.get(zonename).add(
-                        DNSRecord(name=r.hostname, type='A', content=r.address))
-                    if FLAGS.dns_ptr:
-                        (ptr_zonename, octet) = self.ip2zone(r.address)
-                        if ptr_zonename not in zones_list:
-                            self._add_zone(ptr_zonename)
-                        self.dnsmanager.get(ptr_zonename).add(DNSRecord(name=octet,
-                            type='PTR', content=r.hostname+'.'+zonename))
-                except ValueError as e:
-                    LOG.warn(str(e))
-                except:
-                    pass
-
-    def _add_main_zone(self):
-        name = FLAGS.dns_zone
-        self._add_zone(name)
-        zone = self.dnsmanager.get(name)
-        for ns in FLAGS.dns_ns:
-            (host, address) = ns.split(':', 1)
-            # NOTE(imelnikov): if host is in main zone or its subdomain,
-            #   strip current zone and period
-            if host.endswith(name):
-                host = host[:-len(name)-1]
-            if '.' not in host:
-                # NOTE(imelnikov): this is host from main zone,
-                #    let's add a record for it
-                try:
-                    socket.inet_aton(address)
-                    # ok, this is something like ipv4
-                    record_type = 'A'
-                except socket.error:
-                    # this is not ipv4, must be host name
-                    record_type = 'PTR'
-                zone.add(DNSRecord(name=host, type=record_type,
-                                   content=address))
-
-    def _add_zone(self, name):
-        try:
-            self.dnsmanager.add(name)
-            zone = self.dnsmanager.get(name)
-            for ns in FLAGS.dns_ns:
-                (host, _address) = ns.split(':', 2)
-                if '.' not in host:
-                    host = '%s.%s' % (host, FLAGS.dns_zone)
-                zone.add(DNSRecord(name=name, type="NS", content=host))
-        except Exception, e:
-            #TODO(nsavin) add exception ZoneExists and pass only it and ValueError
-            LOG.exception('Failed to add zone')
-
-    def ip2zone(self, ip):
-        #TODO check /cidr >= 24
-        addr = netaddr.IPAddress(ip)
-        for zone in FLAGS.dns_ptr_zones:
-            #TODO prepare netaddr one time on service start
-            zoneaddr = netaddr.IPNetwork(zone)
-            if addr not in zoneaddr:
-                continue
-            cidr = str(zoneaddr.cidr).split('/')[1]
-            w = zoneaddr.cidr.ip.words
-            return ("%s-%s.%s.%s.%s.in-addr.arpa" %
-                (w[3], cidr, w[2], w[1], w[0]), addr.words[-1])
-        w = addr.words
-        return ("%s.%s.%s.in-addr.arpa" % (w[2], w[1], w[0]), w[3])
+                # TODO(imelnikov): pass real network ID
+                self.instance_manager.add_instance(
+                    r.hostname, r.project_id, None, r.address)
