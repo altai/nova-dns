@@ -1,3 +1,10 @@
+0.4.0
+* Initial implementation of sync API call
+* Add utility to make calls to it
+* auth: Fix admin role detection
+* models: drop nametype_index
+* Improve instance deletion (Issue: altai-129)
+* Other minor and internal improvements
 0.3.2
 * correct adding records for NS servers on zone creation
 * fixed nova_network_driver
