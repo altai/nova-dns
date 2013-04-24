@@ -1,0 +1,109 @@
+#!/usr/bin/python
+# -*- encoding: utf-8 -*-
+# vim: tabstop=4 shiftwidth=4 softtabstop=4
+
+#    Nova DNS Copyright (C) GridDynamics Openstack Core Team, GridDynamics
+#
+#    This program is free software: you can redistribute it and/or modify it
+#    under the terms of the GNU Lesser General Public License as published by
+#    the Free Software Foundation, either version 2.1 of the License, or (at
+#    your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful, but
+#    WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+#    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+#    License for more details.
+#
+#    You should have received a copy of the GNU General Public License along
+#    with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""Synchronize nova-dns database with nova state by making corresponding API call.
+"""
+
+
+import os
+import sys
+import argparse
+from openstackclient_base.client import BaseClient, HttpClient
+
+
+class NovaDnsClient(BaseClient):
+    """Rudimentary client to nova-dns service"""
+    service_type = 'nova-dns'
+    endpoint_type = 'adminURL'
+
+    def sync(self, zone_name=None):
+        if zone_name is None:
+            resp, body = self.post('sync')
+        else:
+            resp, body = self.post('zone/%s/sync' % zone_name)
+        if body['error']:
+            raise Exception(body['error'])
+
+
+def env(*vars, **kwargs):
+    """Search for the first defined of possibly many env vars
+
+    Returns the first environment variable defined in vars, or
+    returns the default defined in kwargs.
+
+    """
+    for v in vars:
+        value = os.environ.get(v, None)
+        if value:
+            return value
+    return kwargs.get('default', None)
+
+
+def get_parser():
+    parser = argparse.ArgumentParser(description=__doc__.strip())
+    parser.add_argument('--os_username',
+                        metavar='<auth-user-name>',
+                        default=env('OS_USERNAME'),
+                        help='Defaults to env[OS_USERNAME]')
+    parser.add_argument('--os_password',
+                        metavar='<auth-password>',
+                        default=env('OS_PASSWORD'),
+                        help='Defaults to env[OS_PASSWORD]')
+    parser.add_argument('--os_tenant_name',
+                        metavar='<auth-tenant-name>',
+                        default=env('OS_TENANT_NAME'),
+                        help='Defaults to env[OS_TENANT_NAME]')
+    parser.add_argument('--os_tenant_id',
+                        metavar='<tenant-id>',
+                        default=env('OS_TENANT_ID'),
+                        help='Defaults to env[OS_TENANT_ID]')
+    parser.add_argument('--os_auth_url',
+                        metavar='<auth-url>',
+                        default=env('OS_AUTH_URL'),
+                        help='Defaults to env[OS_AUTH_URL]')
+    parser.add_argument('--os_region_name',
+                        metavar='<region-name>',
+                        default=env('OS_REGION_NAME'),
+                        help='Defaults to env[OS_REGION_NAME]')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('zone_name', metavar='<zone_name>', nargs='?',
+                        help='Zone to sync')
+    group.add_argument('--all', action='store_true',
+                       help='Sync all zones')
+    return parser
+
+
+def main():
+    args = get_parser().parse_args()
+    http_client = HttpClient(
+        username=args.os_username,
+        tenant_name=args.os_tenant_name,
+        tenant_id=args.os_tenant_id,
+        password=args.os_password,
+        auth_url=args.os_auth_url,
+        region_name=args.os_region_name)
+    NovaDnsClient(http_client).sync(args.zone_name)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception, e:
+        sys.stderr.write('%s\n' % e)
+        sys.exit(1)
