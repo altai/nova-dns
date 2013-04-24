@@ -72,8 +72,6 @@ class SimpleInstanceManager(InstanceManager):
                     type='PTR', content=hostname + '.' + zonename))
         except ValueError as e:
             LOG.warn(str(e))
-        except:
-            pass
 
     def delete_instance(self, hostname, tenant_id, network_id, address):
         #TODO check if record was added/changed by admin

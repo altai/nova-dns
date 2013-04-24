@@ -69,10 +69,10 @@ class Listener(AMQPListener):
                     # TODO(imelnikov): pass real network ID and address
                     self.instance_manager.delete_instance(
                         rec.hostname, rec.project_id, None, None)
-                except:
-                    pass
+                except Exception:
+                    LOG.exception("Failed to delete instance")
         else:
-            LOG.debug("Skip message with method: "+method)
+            LOG.debug("Skip message with method: %s", method)
 
     def _pollip(self):
         while True:
@@ -90,5 +90,8 @@ class Listener(AMQPListener):
                     (r.uuid, r.hostname, r.address))
                 del self.pending[r.uuid]
                 # TODO(imelnikov): pass real network ID
-                self.instance_manager.add_instance(
-                    r.hostname, r.project_id, None, r.address)
+                try:
+                    self.instance_manager.add_instance(
+                        r.hostname, r.project_id, None, r.address)
+                except Exception:
+                    LOG.exception("Failed to add instance")

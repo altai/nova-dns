@@ -38,7 +38,7 @@ class Listener(AMQPListener):
         id = e["args"]["instance_id"]
         try:
             name = e["args"]["request_spec"]["instance_properties"]["display_name"]
-        except:
+        except KeyError:
             name = "<unknown>"
         LOG.warning("Method %s instance_id '%s' project_id '%s' instance name '%s'" %
             (method, str(id), str(contextproject_id), name))
