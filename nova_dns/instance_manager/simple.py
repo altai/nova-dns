@@ -84,14 +84,15 @@ class SimpleInstanceManager(InstanceManager):
         if zonename not in zones_list:
             self._add_zone(zonename)
         try:
-            self.dnsmanager.get(zonename).add(
-                DNSRecord(name=hostname, type='A', content=address))
+            self._add_record_if_not_present(self.dnsmanager.get(zonename),
+                                            hostname, 'A', address)
             if FLAGS.dns_ptr:
                 (ptr_zonename, octet) = _ip_to_zone(address)
                 if ptr_zonename not in zones_list:
                     self._add_zone(ptr_zonename)
-                self.dnsmanager.get(ptr_zonename).add(DNSRecord(name=octet,
-                    type='PTR', content=hostname + '.' + zonename))
+                self._add_record_if_not_present(
+                        self.dnsmanager.get(ptr_zonename), str(octet), 'PTR',
+                        '.'.join((hostname, zonename)))
         except ValueError as e:
             LOG.warn(str(e))
 
@@ -112,6 +113,11 @@ class SimpleInstanceManager(InstanceManager):
                 self.dnsmanager.get(ptr_zonename).delete(str(octet), 'PTR')
             except (exc.ZoneNotFound, exc.RecordNotFound):
                 pass
+
+    @staticmethod
+    def _add_record_if_not_present(zone, name, type, content):
+        if not any(r.content == content for r in zone.get(name, type)):
+            zone.add(DNSRecord(name=name, type=type, content=content))
 
     def _make_record(self, name, address):
         try:
