@@ -116,7 +116,7 @@ class SimpleInstanceManager(InstanceManager):
             (host, _address) = ns.split(':', 2)
             if '.' not in host:
                 host = '%s.%s' % (host, FLAGS.dns_zone)
-            zone.add(DNSRecord(name=name, type="NS", content=host))
+            zone.add(DNSRecord(name='', type="NS", content=host))
 
     def ip2zone(self, ip):
         #TODO check /cidr >= 24
