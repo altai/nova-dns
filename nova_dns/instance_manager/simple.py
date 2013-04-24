@@ -39,6 +39,11 @@ FLAGS = flags.FLAGS
 
 #TODO make own zone for every instance
 opts = [
+    cfg.StrOpt('dns_zone_address', default='none',
+               help="IPv4 address dns_zone should be resolved to. "
+               "'A' or 'PTR' record with empty name will be added "
+               "to root zone for it. Set to 'none' (the default) or "
+               "empty string to disable this behavior."),
     cfg.ListOpt("dns_ns", default=["ns1:127.0.0.1"],
                 help="Name servers, in format ns1:ip1, ns2:ip2"),
     cfg.BoolOpt('dns_ptr', default=False, help='Manage PTR records'),
@@ -108,10 +113,22 @@ class SimpleInstanceManager(InstanceManager):
             except (exc.ZoneNotFound, exc.RecordNotFound):
                 pass
 
+    def _make_record(self, name, address):
+        try:
+            socket.inet_aton(address)
+            # ok, this is something like ipv4
+            record_type = 'A'
+        except socket.error:
+            # this is not ipv4, must be host name
+            record_type = 'PTR'
+        return DNSRecord(name=name, type=record_type, content=address)
+
     def _add_main_zone(self):
         name = FLAGS.dns_zone
         self._add_zone(name)
         zone = self.dnsmanager.get(name)
+        if FLAGS.dns_zone_address not in ('', 'none'):
+            zone.add(self._make_record('', FLAGS.dns_zone_address))
         for ns in FLAGS.dns_ns:
             (host, address) = ns.split(':', 1)
             # NOTE(imelnikov): if host is in main zone or its subdomain,
@@ -121,15 +138,7 @@ class SimpleInstanceManager(InstanceManager):
             if '.' not in host:
                 # NOTE(imelnikov): this is host from main zone,
                 #    let's add a record for it
-                try:
-                    socket.inet_aton(address)
-                    # ok, this is something like ipv4
-                    record_type = 'A'
-                except socket.error:
-                    # this is not ipv4, must be host name
-                    record_type = 'PTR'
-                zone.add(DNSRecord(name=host, type=record_type,
-                                   content=address))
+                zone.add(self._make_record(host, address))
 
     def _add_zone(self, name):
         try:
