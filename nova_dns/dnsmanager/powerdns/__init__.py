@@ -132,8 +132,12 @@ class PowerDNSZone(DNSZone):
         return "ok"
     def delete(self, name, type=None):
         if self._q(name, type).delete():
-            LOG.info("[%s]: Record (%s, %s) was deleted" % 
-                (self.zone_name, name, type))
+            if name is not None:
+                LOG.info("[%s]: Record (%s, %s) was deleted",
+                         self.zone_name, name, type)
+            else:
+                LOG.info("[%s]: All records of type %s were deleted",
+                         self.zone_name, type)
             return "ok"
         else:
             raise RecordNotFound(name, type)

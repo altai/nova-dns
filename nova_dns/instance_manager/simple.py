@@ -22,6 +22,7 @@
 
 import socket
 import netaddr
+import sqlalchemy.engine
 
 from nova import utils
 from nova import flags
@@ -74,25 +75,19 @@ class SimpleInstanceManager(InstanceManager):
     def __init__(self):
         dnsmanager_class = utils.import_class(FLAGS.dns_manager)
         self.dnsmanager = dnsmanager_class()
+        self.conn = sqlalchemy.engine.create_engine(FLAGS.sql_connection,
+            pool_recycle=FLAGS.sql_idle_timeout, echo=False)
 
     def add_instance(self, hostname, tenant_id, network_id, address):
-        zones_list = self.dnsmanager.list()
-        if FLAGS.dns_zone not in zones_list:
-            #Lazy create main zone and populate by ns
-            self._add_main_zone()
         zonename = AUTH.tenant2zonename(tenant_id)
-        if zonename not in zones_list:
-            self._add_zone(zonename)
+        zone = self._zone_get_or_create(zonename)
         try:
-            self._add_record_if_not_present(self.dnsmanager.get(zonename),
-                                            hostname, 'A', address)
+            self._add_record_if_not_present(zone, hostname, 'A', address)
             if FLAGS.dns_ptr:
                 (ptr_zonename, octet) = _ip_to_zone(address)
-                if ptr_zonename not in zones_list:
-                    self._add_zone(ptr_zonename)
                 self._add_record_if_not_present(
-                        self.dnsmanager.get(ptr_zonename), str(octet), 'PTR',
-                        '.'.join((hostname, zonename)))
+                        self._zone_get_or_create(ptr_zonename),
+                        str(octet), 'PTR', '.'.join((hostname, zonename)))
         except ValueError as e:
             LOG.warn(str(e))
 
@@ -114,9 +109,6 @@ class SimpleInstanceManager(InstanceManager):
             except (exc.ZoneNotFound, exc.RecordNotFound):
                 pass
 
-    def sync(self, zone=None):
-        raise Exception('Sync not implemented')
-
     @staticmethod
     def _add_record_if_not_present(zone, name, type, content):
         if not any(r.content == content for r in zone.get(name, type)):
@@ -132,28 +124,15 @@ class SimpleInstanceManager(InstanceManager):
             record_type = 'PTR'
         return DNSRecord(name=name, type=record_type, content=address)
 
-    def _add_main_zone(self):
-        name = FLAGS.dns_zone
-        self._add_zone(name)
-        zone = self.dnsmanager.get(name)
-        if FLAGS.dns_zone_address not in ('', 'none'):
-            zone.add(self._make_record('', FLAGS.dns_zone_address))
-        for ns in FLAGS.dns_ns:
-            (host, address) = ns.split(':', 1)
-            # NOTE(imelnikov): if host is in main zone or its subdomain,
-            #   strip current zone and period
-            if host.endswith(name):
-                host = host[:-len(name) - 1]
-            if '.' not in host:
-                # NOTE(imelnikov): this is host from main zone,
-                #    let's add a record for it
-                zone.add(self._make_record(host, address))
-
-    def _add_zone(self, name):
+    def _zone_get_or_create(self, name):
         try:
-            self.dnsmanager.add(name)
-        except ZoneExists:
-            return
+            return self.dnsmanager.get(name)
+        except exc.ZoneNotFound:
+            pass
+        if name != FLAGS.dns_zone:
+            self._zone_get_or_create(FLAGS.dns_zone)
+        LOG.info("Creating new zone %r", name)
+        self.dnsmanager.add(name)
         zone = self.dnsmanager.get(name)
         for ns in FLAGS.dns_ns:
             (host, _address) = ns.split(':', 2)
@@ -161,3 +140,57 @@ class SimpleInstanceManager(InstanceManager):
                 host = '%s.%s' % (host, FLAGS.dns_zone)
             zone.add(DNSRecord(name='', type="NS", content=host))
 
+        if name == FLAGS.dns_zone:
+            if FLAGS.dns_zone_address not in ('', 'none'):
+                zone.add(self._make_record('', FLAGS.dns_zone_address))
+            for ns in FLAGS.dns_ns:
+                (host, address) = ns.split(':', 1)
+                # NOTE(imelnikov): if host is in main zone or its subdomain,
+                #   strip current zone and period
+                if host.endswith(name):
+                    host = host[:-len(name) - 1]
+                if '.' not in host:
+                    # NOTE(imelnikov): this is host from main zone,
+                    #    let's add a record for it
+                    zone.add(self._make_record(host, address))
+        return zone
+
+    def sync(self, zone=None):
+        if zone:
+            LOG.info("Synchronizing zone %r", zone)
+            records = {zone: []}
+        else:
+            LOG.info("Synchronizing all zones")
+            records = dict((name, []) for name in self.dnsmanager.list())
+
+        for r in self.conn.execute(
+                'SELECT i.hostname, i.project_id, f.address '
+                'FROM instances i, fixed_ips f '
+                'WHERE i.id=f.instance_id '
+                '  AND i.deleted=0'):
+            fwd_zone = AUTH.tenant2zonename(r.project_id)
+            if zone is None or zone == fwd_zone:
+                records.setdefault(fwd_zone, []).append(
+                    DNSRecord(r.hostname, 'A', r.address))
+            ptr_zone, octet = _ip_to_zone(r.address)
+            if zone is None or zone == ptr_zone:
+                fqdn = '.'.join((r.hostname, fwd_zone))
+                records.setdefault(ptr_zone, []).append(
+                    DNSRecord(octet, 'PTR', fqdn))
+
+        for zone_name, zone_records in records.iteritems():
+            if zone_name == FLAGS.dns_zone:
+                continue
+            z = self._zone_get_or_create(zone_name)
+            try:
+                z.delete(name=None, type='PTR')
+            except exc.RecordNotFound:
+                pass
+            try:
+                z.delete(name=None, type='A')
+            except exc.RecordNotFound:
+                pass
+            for r in zone_records:
+                z.add(r)
+        LOG.info("Synchronizing finished successfully")
+        return "ok"
