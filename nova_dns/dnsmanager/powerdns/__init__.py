@@ -21,6 +21,7 @@ import time
 
 from nova import flags
 from nova import log as logging
+from nova_dns.exc import *
 from nova_dns.dnsmanager import DNSManager, DNSZone, DNSRecord, DNSSOARecord
 from nova_dns.dnsmanager.powerdns.session import get_session
 from nova_dns.dnsmanager.powerdns.models import Domains, Records
@@ -39,7 +40,7 @@ class Manager(DNSManager):
         return [name[0] for name in self.session.query(Domains.name).all()]
     def add(self, zone_name, soa=None):
         if zone_name in self.list():
-            raise Exception('Zone already exists')
+            raise ZoneAlreadyExists(zone_name)
         zone_name=DNSRecord.normname(zone_name)
         self.session.add(Domains(name=zone_name, type="NATIVE"))
         self.session.flush()
@@ -54,9 +55,10 @@ class Manager(DNSManager):
     def drop(self, zone_name, force=False):
         domains=self.session.query(Domains).filter(Domains.name.like('%'+zone_name)).all()
         if not domains:
-            raise Exception('Zone not exists')
+            raise ZoneNotFound(zone_name)
         elif len(domains)>1 and not force:
-            raise Exception("Subzones exists: " + " ".join([d.name for d in domains]))
+            raise ZoneNotEmpty("Subzones exists: %s" %
+                               " ".join([d.name for d in domains]))
         for domain in domains:
             PowerDNSZone(domain.name).drop()
             self.session.delete(domain)
@@ -67,7 +69,7 @@ class Manager(DNSManager):
         if zone_name in self.list():
             return PowerDNSZone(zone_name)
         else:
-            raise Exception('Zone does not exist')
+            raise ZoneNotFound(zone_name)
 
 class PowerDNSZone(DNSZone):
     def __init__(self, zone_name):
@@ -75,7 +77,7 @@ class PowerDNSZone(DNSZone):
         self.session=get_session()
         domain=self.session.query(Domains).filter(Domains.name==zone_name).first()
         if not domain:
-            raise Exception("Unknown zone: "+zone_name)
+            raise ZoneNotFound(zone_name)
         self.domain_id=domain.id
     def get_soa(self):
         content=self._q(type="SOA", name='').first().content
@@ -111,10 +113,10 @@ class PowerDNSZone(DNSZone):
         return res
     def set(self, name, type, content="", priority="", ttl=""):
         if type=='SOA':
-            raise exception("Can't change SOA")
+            raise RuntimeError("Can't change SOA")
         rec=self._q(name, type).first()
         if not rec:
-            raise Exception("Not found record (%s, %s)" % (name, type))
+            raise RecordNotFound(name, type)
         if content:
             rec.content=content
         if ttl:
@@ -134,7 +136,7 @@ class PowerDNSZone(DNSZone):
                 (self.zone_name, name, type))
             return "ok"
         else:
-            raise Exception("No records was deleted")
+            raise RecordNotFound(name, type)
     def _update_serial(self, change_date):
         #TODO change to get_soa
         soa=self._q('', 'SOA').first()

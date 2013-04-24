@@ -109,15 +109,14 @@ class SimpleInstanceManager(InstanceManager):
     def _add_zone(self, name):
         try:
             self.dnsmanager.add(name)
-            zone = self.dnsmanager.get(name)
-            for ns in FLAGS.dns_ns:
-                (host, _address) = ns.split(':', 2)
-                if '.' not in host:
-                    host = '%s.%s' % (host, FLAGS.dns_zone)
-                zone.add(DNSRecord(name=name, type="NS", content=host))
-        except Exception, e:
-            #TODO(nsavin) add exception ZoneExists and pass only it and ValueError
-            LOG.exception('Failed to add zone')
+        except ZoneExists:
+            return
+        zone = self.dnsmanager.get(name)
+        for ns in FLAGS.dns_ns:
+            (host, _address) = ns.split(':', 2)
+            if '.' not in host:
+                host = '%s.%s' % (host, FLAGS.dns_zone)
+            zone.add(DNSRecord(name=name, type="NS", content=host))
 
     def ip2zone(self, ip):
         #TODO check /cidr >= 24
