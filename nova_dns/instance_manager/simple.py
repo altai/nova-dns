@@ -155,10 +155,25 @@ class SimpleInstanceManager(InstanceManager):
                     zone.add(self._make_record(host, address))
         return zone
 
+    @staticmethod
+    def _reset_zone_records(zone, records):
+        try:
+            zone.delete(name=None, type='PTR')
+        except exc.RecordNotFound:
+            pass
+        try:
+            zone.delete(name=None, type='A')
+        except exc.RecordNotFound:
+            pass
+        for record in records:
+            zone.add(record)
+
     def sync(self, zone=None):
-        if zone:
+        if zone is not None:
+            if zone == FLAGS.dns_zone:
+                raise Exception("Can't sync root zone")
             LOG.info("Synchronizing zone %r", zone)
-            records = {zone: []}
+            records = {}
         else:
             LOG.info("Synchronizing all zones")
             records = dict((name, []) for name in self.dnsmanager.list())
@@ -178,19 +193,15 @@ class SimpleInstanceManager(InstanceManager):
                 records.setdefault(ptr_zone, []).append(
                     DNSRecord(octet, 'PTR', fqdn))
 
-        for zone_name, zone_records in records.iteritems():
-            if zone_name == FLAGS.dns_zone:
-                continue
-            z = self._zone_get_or_create(zone_name)
-            try:
-                z.delete(name=None, type='PTR')
-            except exc.RecordNotFound:
-                pass
-            try:
-                z.delete(name=None, type='A')
-            except exc.RecordNotFound:
-                pass
-            for r in zone_records:
-                z.add(r)
+        if zone is not None and zone not in records:
+                # NOTE(imelnikov): we should avoid creating empty zones
+                self._reset_zone_records(self.dnsmanager.get(zone), [])
+        else:
+            for zone_name, zone_records in records.iteritems():
+                if zone_name == FLAGS.dns_zone:
+                    continue
+                # NOTE(imelnikov): we should ensure all zones we found exist
+                self._reset_zone_records(self._zone_get_or_create(zone_name),
+                                         zone_records)
         LOG.info("Synchronizing finished successfully")
         return "ok"
